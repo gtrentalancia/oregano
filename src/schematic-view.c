@@ -572,7 +572,11 @@ static void close_cmd (GtkWidget *widget, SchematicView *sv)
 		NG_DEBUG (" --- not dirty (anymore), do close schematic_view: %p -- vs -- "
 		          "toplevel: %p",
 		          sv, schematic_view_get_toplevel (sv));
+
 		gtk_widget_destroy (GTK_WIDGET (schematic_view_get_toplevel (sv)));
+		sv->toplevel = NULL;
+
+		g_object_unref (G_OBJECT (sv));
 	}
 }
 
@@ -1068,19 +1072,24 @@ static void schematic_view_dispose (GObject *object)
 
 	schematic_view_list = g_list_remove (schematic_view_list, sv);
 
-	// Disconnect sheet's events
-	g_signal_handlers_disconnect_by_func (G_OBJECT (sv->priv->sheet),
-	                                      G_CALLBACK (sheet_event_callback), sv->priv->sheet);
+	if (sv->toplevel) {
+		// Disconnect focus signal
+		g_signal_handlers_disconnect_by_func (G_OBJECT (sv->toplevel), G_CALLBACK (set_focus), sv);
 
-	// Disconnect focus signal
-	g_signal_handlers_disconnect_by_func (G_OBJECT (sv->toplevel), G_CALLBACK (set_focus), sv);
-
-	// Disconnect destroy event from toplevel
-	g_signal_handlers_disconnect_by_func (G_OBJECT (sv->toplevel), G_CALLBACK (delete_event), sv);
+		// Disconnect destroy event from toplevel
+		g_signal_handlers_disconnect_by_func (G_OBJECT (sv->toplevel), G_CALLBACK (delete_event), sv);
+	}
 
 	if (sv->priv) {
+		if (IS_SHEET (sv->priv->sheet)) {
+			// Disconnect sheet's events
+			g_signal_handlers_disconnect_by_func (G_OBJECT (sv->priv->sheet),
+							      G_CALLBACK (sheet_event_callback), sv->priv->sheet);
+		}
+
 		g_object_unref (G_OBJECT (sv->priv->schematic));
 	}
+
 	G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
